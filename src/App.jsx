@@ -121,7 +121,9 @@ export default function App() {
     
     // Format message
     let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('%0A');
-    let message = `Hola! Gracias por comprar en *FRUTAS LOCAS MX SRL*.%0A%0A*Detalle de compra:*%0A${itemsText}%0A%0A*Total:* ${total} Bs%0A%0ASe generó y descargó tu factura en PDF. (Puedes adjuntarla aquí).`;
+    let message = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.%0A%0A*Detalle de tu pedido:*%0A${itemsText}%0A%0A*Total pagado:* ${total.toFixed(2)} Bs%0A%0AAdjunto te envío tu factura en PDF. ¡Gracias por tu preferencia!`;
+    
+    alert("IMPORTANTE: WhatsApp no permite adjuntar archivos automáticamente. La factura PDF se ha descargado a tu dispositivo. Por favor, adjúntala manualmente (con el icono del clip 📎) antes de enviar el mensaje.");
     
     window.open(`https://wa.me/?text=${message}`, '_blank');
   };
