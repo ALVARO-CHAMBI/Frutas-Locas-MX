@@ -15,7 +15,7 @@ const productos = [
 
 export default function App() {
   const [cart, setCart] = useState([]);
-  const [customerInfo, setCustomerInfo] = useState({ name: 'S/N', nit: '0' });
+  const [customerInfo, setCustomerInfo] = useState({ name: 'S/N', nit: '0', phone: '' });
 
   const addToCart = (producto) => {
     setCart(prev => {
@@ -111,21 +111,43 @@ export default function App() {
       doc.save('factura_frutas_locas.pdf');
     }
     
-    // Return Blob/Base64 if needed for other sharing, but browser blocks direct file attach to WA.
-    return doc.output('blob');
+    return doc;
   };
 
-  const sendWhatsApp = () => {
-    // Generate PDF for local download first
-    generatePDF(true);
+  const sendWhatsApp = async () => {
+    if (!customerInfo.phone) {
+      alert("Por favor, ingresa el celular del cliente para enviar el mensaje.");
+      return;
+    }
+
+    const doc = generatePDF(false);
+    const pdfBlob = doc.output('blob');
+    const pdfFile = new File([pdfBlob], 'factura_frutas_locas.pdf', { type: 'application/pdf' });
     
-    // Format message
     let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('%0A');
-    let message = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.%0A%0A*Detalle de tu pedido:*%0A${itemsText}%0A%0A*Total pagado:* ${total.toFixed(2)} Bs%0A%0AAdjunto te envío tu factura en PDF. ¡Gracias por tu preferencia!`;
+    let message = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.%0A%0A*Detalle de tu pedido:*%0A${itemsText}%0A%0A*Total pagado:* ${total.toFixed(2)} Bs`;
     
-    alert("IMPORTANTE: WhatsApp no permite adjuntar archivos automáticamente. La factura PDF se ha descargado a tu dispositivo. Por favor, adjúntala manualmente (con el icono del clip 📎) antes de enviar el mensaje.");
+    // Si el navegador soporta compartir archivos nativamente (Celulares y Windows 10/11)
+    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      try {
+        await navigator.share({
+          title: 'Factura Frutas Locas MX',
+          text: message.replace(/%0A/g, '\n'),
+          files: [pdfFile]
+        });
+        return; // Éxito compartiendo nativamente
+      } catch (error) {
+        console.log('El usuario canceló o falló el share nativo', error);
+      }
+    }
     
-    window.open(`https://wa.me/?text=${message}`, '_blank');
+    // Fallback para PC de escritorio sin Share API
+    doc.save('factura_frutas_locas.pdf');
+    let phoneParam = `591${customerInfo.phone.replace(/\D/g, '')}`; // Código de Bolivia +591
+    
+    alert("IMPORTANTE: Tu navegador de PC no permite adjuntar automáticamente. El PDF se ha descargado. Por favor, arrástralo al chat de WhatsApp que se abrirá a continuación.");
+    
+    window.open(`https://wa.me/${phoneParam}?text=${message}`, '_blank');
   };
 
   return (
@@ -259,6 +281,16 @@ export default function App() {
                     onChange={e => setCustomerInfo({...customerInfo, nit: e.target.value})}
                     className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                     placeholder="Escriba el NIT..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-600 mb-1">Celular del Cliente</label>
+                  <input 
+                    type="text" 
+                    value={customerInfo.phone}
+                    onChange={e => setCustomerInfo({...customerInfo, phone: e.target.value})}
+                    className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                    placeholder="Ej: 77123456"
                   />
                 </div>
              </div>
