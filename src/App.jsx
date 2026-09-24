@@ -29,6 +29,22 @@ export default function App() {
   });
 
   const [showRegister, setShowRegister] = useState(false);
+  const [logoBase64, setLogoBase64] = useState(null);
+
+  useEffect(() => {
+    const loadLogo = async () => {
+      try {
+        const res = await fetch('/logo.png');
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => setLogoBase64(reader.result);
+        reader.readAsDataURL(blob);
+      } catch (e) {
+        console.error('Error cargando el logo', e);
+      }
+    };
+    loadLogo();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('invoiceCounter', invoiceCounter);
@@ -60,8 +76,23 @@ export default function App() {
 
   const total = cart.reduce((acc, item) => acc + (item.precio * item.qty), 0);
 
-  const generatePDF = (invoiceNo) => {
+  const generatePDF = (invoiceNo, logoB64) => {
     const doc = new jsPDF();
+    
+    if (logoB64) {
+      try {
+        // Marca de agua en el fondo (centro)
+        doc.setGState(new doc.GState({opacity: 0.15}));
+        doc.addImage(logoB64, 'PNG', 45, 90, 120, 120);
+        // Restaurar opacidad para el texto
+        doc.setGState(new doc.GState({opacity: 1.0}));
+      } catch (e) {
+        console.log('Transparencia no soportada', e);
+      }
+      
+      // Logo claro en la esquina superior izquierda
+      doc.addImage(logoB64, 'PNG', 15, 10, 30, 30);
+    }
     
     // Header
     doc.setFontSize(20);
@@ -153,8 +184,8 @@ export default function App() {
     setSales(prev => [newSale, ...prev]);
     setInvoiceCounter(prev => prev + 1);
 
-    // 2. Generar el PDF con el número actual
-    const doc = generatePDF(currentInvoiceNo);
+    // 2. Generar el PDF con el número actual y logo
+    const doc = generatePDF(currentInvoiceNo, logoBase64);
     const fileName = `factura_${String(currentInvoiceNo).padStart(4, '0')}.pdf`;
 
     // 3. Ejecutar la acción seleccionada
@@ -201,7 +232,7 @@ export default function App() {
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Candy className="text-pink-500 w-8 h-8" />
+            <img src="/logo.png" alt="Frutas Locas MX" className="w-10 h-10 object-contain drop-shadow-sm" />
             <h1 className="text-xl font-bold text-neutral-800 tracking-tight">Frutas Locas MX</h1>
           </div>
           <div className="flex items-center gap-4">
