@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Plus, Minus, FileText, Phone, Candy, ClipboardList, X } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, FileText, Phone, Candy, ClipboardList, X, Trash2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -67,11 +67,14 @@ export default function App() {
   const updateQty = (id, delta) => {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
-        const newQty = item.qty + delta;
-        return newQty > 0 ? { ...item, qty: newQty } : item;
+        return { ...item, qty: item.qty + delta };
       }
       return item;
-    }));
+    }).filter(item => item.qty > 0));
+  };
+
+  const removeFromCart = (id) => {
+    setCart(prev => prev.filter(item => item.id !== id));
   };
 
   const total = cart.reduce((acc, item) => acc + (item.precio * item.qty), 0);
@@ -103,7 +106,7 @@ export default function App() {
     doc.setFont("helvetica", "normal");
     doc.text('Venta de Frutas y Helados', 105, 26, { align: 'center' });
     doc.text('Calle Víctor Gutiérrez No. 3339 - Zona 16 de julio - El Alto', 105, 32, { align: 'center' });
-    doc.text('Teléfono: 77777777 (Simulado)', 105, 38, { align: 'center' });
+    doc.text('Teléfono: 77777777', 105, 38, { align: 'center' });
     
     // Right side info (NIT, Factura No)
     doc.setFont("helvetica", "bold");
@@ -334,6 +337,9 @@ export default function App() {
                         <span className="text-sm font-medium w-4 text-center">{item.qty}</span>
                         <button onClick={() => updateQty(item.id, 1)} className="p-1 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200 rounded-md">
                           <Plus className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => removeFromCart(item.id)} className="p-1 ml-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Eliminar producto">
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </motion.div>
