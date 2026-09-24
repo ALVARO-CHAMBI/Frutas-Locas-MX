@@ -406,7 +406,7 @@ export default function App() {
                   className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white py-3 px-4 rounded-xl font-medium transition-colors"
                 >
                   <FileText className="w-5 h-5" />
-                  Finalizar Venta (Solo PDF)
+                  Descargar Factura
                 </button>
                 <button 
                   onClick={() => processSale('whatsapp')}
