@@ -401,6 +401,9 @@ export default function App() {
              </div>
 
              <div className="mt-6 space-y-3">
+                <p className="text-xs text-neutral-500 text-center mb-2">
+                  *En celular, WhatsApp borra el texto al enviar PDFs. El detalle se copiará a tu portapapeles, solo debes darle <strong>Pegar</strong> en WhatsApp.
+                </p>
                 <button 
                   onClick={() => processSale('pdf')}
                   disabled={cart.length === 0}
