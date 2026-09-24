@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Plus, Minus, FileText, Phone, Trash2, IceCream2, Candy } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const productos = [
   { id: 1, nombre: 'Vaso grande', precio: 12, category: 'Helados', emoji: '🍦', color: 'from-pink-300 to-rose-300' },
@@ -90,7 +90,7 @@ export default function App() {
       tableRows.push(rowData);
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 100,
       head: [tableColumn],
       body: tableRows,
