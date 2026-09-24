@@ -200,15 +200,23 @@ export default function App() {
       const pdfBlob = doc.output('blob');
       const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
       
-      let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('%0A');
-      let message = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.%0A%0A*Factura N°:* ${currentInvoiceNo}%0A*Detalle de tu pedido:*%0A${itemsText}%0A%0A*Total pagado:* ${total.toFixed(2)} Bs`;
+      let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('\n');
+      let cleanMessage = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.\n\n*Factura N°:* ${currentInvoiceNo}\n*Detalle de tu pedido:*\n${itemsText}\n\n*Total pagado:* ${total.toFixed(2)} Bs`;
+      let encodedMessage = encodeURIComponent(cleanMessage);
+      
+      // Copiar el texto al portapapeles automáticamente
+      try {
+        await navigator.clipboard.writeText(cleanMessage);
+      } catch (err) {
+        console.log('No se pudo copiar al portapapeles automáticamente', err);
+      }
       
       let shareSuccess = false;
       if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         try {
           await navigator.share({
             title: `Factura ${currentInvoiceNo} Frutas Locas MX`,
-            text: message.replace(/%0A/g, '\n'),
+            text: cleanMessage,
             files: [pdfFile]
           });
           shareSuccess = true;
@@ -219,9 +227,9 @@ export default function App() {
       
       if (!shareSuccess) {
         doc.save(fileName);
-        let phoneParam = `591${customerInfo.phone.replace(/\D/g, '')}`; 
-        alert(`Venta registrada (Factura N° ${currentInvoiceNo}). Tu navegador de PC no permite adjuntar automáticamente. El PDF se descargó, arrástralo al chat.`);
-        window.open(`https://wa.me/${phoneParam}?text=${message}`, '_blank');
+        let phoneParam = customerInfo.phone ? `591${customerInfo.phone.replace(/\D/g, '')}` : ''; 
+        alert(`¡Factura N° ${currentInvoiceNo} descargada y texto copiado!\n\n1. Arrastra el PDF descargado a WhatsApp.\n2. Dale "Pegar" (Ctrl+V) en el comentario del archivo para enviar el detalle junto a la factura.`);
+        window.open(`https://wa.me/${phoneParam}?text=${encodedMessage}`, '_blank');
       }
     }
 
