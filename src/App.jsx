@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Plus, Minus, FileText, Phone, Trash2, IceCream2, Candy } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, FileText, Phone, Candy, ClipboardList, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -16,6 +16,27 @@ const productos = [
 export default function App() {
   const [cart, setCart] = useState([]);
   const [customerInfo, setCustomerInfo] = useState({ name: 'S/N', nit: '0', phone: '' });
+  
+  // Persistencia de datos en localStorage
+  const [invoiceCounter, setInvoiceCounter] = useState(() => {
+    const saved = localStorage.getItem('invoiceCounter');
+    return saved ? parseInt(saved) : 1;
+  });
+
+  const [sales, setSales] = useState(() => {
+    const saved = localStorage.getItem('salesRegistro');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [showRegister, setShowRegister] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('invoiceCounter', invoiceCounter);
+  }, [invoiceCounter]);
+
+  useEffect(() => {
+    localStorage.setItem('salesRegistro', JSON.stringify(sales));
+  }, [sales]);
 
   const addToCart = (producto) => {
     setCart(prev => {
@@ -25,10 +46,6 @@ export default function App() {
       }
       return [...prev, { ...producto, qty: 1 }];
     });
-  };
-
-  const removeFromCart = (id) => {
-    setCart(prev => prev.filter(item => item.id !== id));
   };
 
   const updateQty = (id, delta) => {
@@ -43,7 +60,7 @@ export default function App() {
 
   const total = cart.reduce((acc, item) => acc + (item.precio * item.qty), 0);
 
-  const generatePDF = (download = true) => {
+  const generatePDF = (invoiceNo) => {
     const doc = new jsPDF();
     
     // Header
@@ -61,7 +78,9 @@ export default function App() {
     doc.setFont("helvetica", "bold");
     doc.rect(140, 45, 60, 25);
     doc.text('NIT: 14651364026', 145, 52);
-    doc.text('FACTURA N°: 0001', 145, 59);
+    // Número correlativo de 4 dígitos (ej: 0001, 0002)
+    const formattedNo = String(invoiceNo).padStart(4, '0');
+    doc.text(`FACTURA N°: ${formattedNo}`, 145, 59);
     doc.text('AUTORIZACIÓN: 123456', 145, 66);
 
     // Title
@@ -72,7 +91,7 @@ export default function App() {
     doc.text('(Con Derecho a Crédito Fiscal)', 105, 65, { align: 'center' });
     
     // Customer Info
-    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 15, 80);
+    doc.text(`Fecha: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 15, 80);
     doc.text(`Señor(es): ${customerInfo.name}`, 15, 86);
     doc.text(`NIT/CI: ${customerInfo.nit}`, 15, 92);
 
@@ -107,47 +126,74 @@ export default function App() {
     doc.setFontSize(8);
     doc.text('"ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS. EL USO ILÍCITO DE ÉSTA SERÁ SANCIONADO DE ACUERDO A LEY"', 105, finalY, { align: 'center' });
     
-    if (download) {
-      doc.save('factura_frutas_locas.pdf');
-    }
-    
     return doc;
   };
 
-  const sendWhatsApp = async () => {
-    if (!customerInfo.phone) {
-      alert("Por favor, ingresa el celular del cliente para enviar el mensaje.");
+  const processSale = async (actionType) => {
+    if (cart.length === 0) return;
+    
+    if (actionType === 'whatsapp' && !customerInfo.phone) {
+      alert("Por favor, ingresa el celular del cliente para enviar el mensaje por WhatsApp.");
       return;
     }
 
-    const doc = generatePDF(false);
-    const pdfBlob = doc.output('blob');
-    const pdfFile = new File([pdfBlob], 'factura_frutas_locas.pdf', { type: 'application/pdf' });
+    const currentInvoiceNo = invoiceCounter;
     
-    let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('%0A');
-    let message = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.%0A%0A*Detalle de tu pedido:*%0A${itemsText}%0A%0A*Total pagado:* ${total.toFixed(2)} Bs`;
+    // 1. Registrar la Venta
+    const newSale = {
+      id: Date.now(),
+      date: new Date().toLocaleString(),
+      invoiceNo: currentInvoiceNo,
+      customer: customerInfo.name,
+      nit: customerInfo.nit,
+      total: total,
+      itemsCount: cart.reduce((a, b) => a + b.qty, 0)
+    };
     
-    // Si el navegador soporta compartir archivos nativamente (Celulares y Windows 10/11)
-    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-      try {
-        await navigator.share({
-          title: 'Factura Frutas Locas MX',
-          text: message.replace(/%0A/g, '\n'),
-          files: [pdfFile]
-        });
-        return; // Éxito compartiendo nativamente
-      } catch (error) {
-        console.log('El usuario canceló o falló el share nativo', error);
+    setSales(prev => [newSale, ...prev]);
+    setInvoiceCounter(prev => prev + 1);
+
+    // 2. Generar el PDF con el número actual
+    const doc = generatePDF(currentInvoiceNo);
+    const fileName = `factura_${String(currentInvoiceNo).padStart(4, '0')}.pdf`;
+
+    // 3. Ejecutar la acción seleccionada
+    if (actionType === 'pdf') {
+      doc.save(fileName);
+      alert(`Venta registrada exitosamente. Factura N° ${currentInvoiceNo} descargada.`);
+    } 
+    else if (actionType === 'whatsapp') {
+      const pdfBlob = doc.output('blob');
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      
+      let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('%0A');
+      let message = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.%0A%0A*Factura N°:* ${currentInvoiceNo}%0A*Detalle de tu pedido:*%0A${itemsText}%0A%0A*Total pagado:* ${total.toFixed(2)} Bs`;
+      
+      let shareSuccess = false;
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            title: `Factura ${currentInvoiceNo} Frutas Locas MX`,
+            text: message.replace(/%0A/g, '\n'),
+            files: [pdfFile]
+          });
+          shareSuccess = true;
+        } catch (error) {
+          console.log('Share cancelado o falló', error);
+        }
+      }
+      
+      if (!shareSuccess) {
+        doc.save(fileName);
+        let phoneParam = `591${customerInfo.phone.replace(/\D/g, '')}`; 
+        alert(`Venta registrada (Factura N° ${currentInvoiceNo}). Tu navegador de PC no permite adjuntar automáticamente. El PDF se descargó, arrástralo al chat.`);
+        window.open(`https://wa.me/${phoneParam}?text=${message}`, '_blank');
       }
     }
-    
-    // Fallback para PC de escritorio sin Share API
-    doc.save('factura_frutas_locas.pdf');
-    let phoneParam = `591${customerInfo.phone.replace(/\D/g, '')}`; // Código de Bolivia +591
-    
-    alert("IMPORTANTE: Tu navegador de PC no permite adjuntar automáticamente. El PDF se ha descargado. Por favor, arrástralo al chat de WhatsApp que se abrirá a continuación.");
-    
-    window.open(`https://wa.me/${phoneParam}?text=${message}`, '_blank');
+
+    // 4. Limpiar para el siguiente cliente
+    setCart([]);
+    setCustomerInfo({ name: 'S/N', nit: '0', phone: '' });
   };
 
   return (
@@ -159,6 +205,13 @@ export default function App() {
             <h1 className="text-xl font-bold text-neutral-800 tracking-tight">Frutas Locas MX</h1>
           </div>
           <div className="flex items-center gap-4">
+             <button 
+                onClick={() => setShowRegister(true)}
+                className="flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 bg-neutral-100 px-3 py-2 rounded-lg transition-colors"
+             >
+                <ClipboardList className="w-5 h-5" />
+                <span className="hidden sm:inline">Registro de Ventas</span>
+             </button>
              <div className="relative p-2 bg-neutral-100 rounded-full">
                 <ShoppingCart className="w-5 h-5 text-neutral-600" />
                 {cart.length > 0 && (
@@ -175,7 +228,13 @@ export default function App() {
         
         {/* Product Catalog */}
         <div className="flex-1">
-          <h2 className="text-2xl font-bold text-neutral-800 mb-6">Nuestros Productos</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-neutral-800">Nuestros Productos</h2>
+            <div className="bg-white px-3 py-1 rounded-full border border-neutral-200 text-sm font-semibold text-neutral-500 shadow-sm">
+              Siguiente Factura: N° {String(invoiceCounter).padStart(4, '0')}
+            </div>
+          </div>
+          
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {productos.map(prod => (
               <motion.div
@@ -297,26 +356,101 @@ export default function App() {
 
              <div className="mt-6 space-y-3">
                 <button 
-                  onClick={() => generatePDF(true)}
+                  onClick={() => processSale('pdf')}
                   disabled={cart.length === 0}
                   className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white py-3 px-4 rounded-xl font-medium transition-colors"
                 >
                   <FileText className="w-5 h-5" />
-                  Generar Factura (PDF)
+                  Finalizar Venta (Solo PDF)
                 </button>
                 <button 
-                  onClick={sendWhatsApp}
+                  onClick={() => processSale('whatsapp')}
                   disabled={cart.length === 0}
                   className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white py-3 px-4 rounded-xl font-medium transition-colors"
                 >
                   <Phone className="w-5 h-5" />
-                  Enviar por WhatsApp
+                  Finalizar Venta y Enviar a WA
                 </button>
              </div>
           </div>
 
         </div>
       </main>
+
+      {/* MODAL REGISTRO DE VENTAS */}
+      <AnimatePresence>
+        {showRegister && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50">
+                <h2 className="text-xl font-bold text-neutral-800 flex items-center gap-2">
+                  <ClipboardList className="text-primary w-6 h-6" />
+                  Registro de Ventas
+                </h2>
+                <button 
+                  onClick={() => setShowRegister(false)}
+                  className="p-2 hover:bg-neutral-200 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-neutral-500" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto flex-1">
+                {sales.length === 0 ? (
+                  <div className="text-center py-12 text-neutral-400">
+                    No hay ventas registradas todavía.
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-neutral-100 text-sm font-semibold text-neutral-500">
+                        <th className="py-3 px-4">Factura N°</th>
+                        <th className="py-3 px-4">Fecha y Hora</th>
+                        <th className="py-3 px-4">Cliente</th>
+                        <th className="py-3 px-4 text-center">Artículos</th>
+                        <th className="py-3 px-4 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sales.map((sale) => (
+                        <tr key={sale.id} className="border-b border-neutral-50 hover:bg-neutral-50 transition-colors">
+                          <td className="py-3 px-4 font-medium text-neutral-900">
+                            {String(sale.invoiceNo).padStart(4, '0')}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-neutral-600">{sale.date}</td>
+                          <td className="py-3 px-4 text-sm text-neutral-600">
+                            {sale.customer} <br/>
+                            <span className="text-xs text-neutral-400">NIT: {sale.nit}</span>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-neutral-600 text-center">{sale.itemsCount}</td>
+                          <td className="py-3 px-4 text-sm font-bold text-neutral-900 text-right">{sale.total.toFixed(2)} Bs</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              
+              <div className="p-4 bg-neutral-50 border-t border-neutral-100 flex justify-between items-center text-sm text-neutral-500">
+                <span>Total Ventas: {sales.length}</span>
+                <span className="font-bold text-lg text-neutral-900">
+                  Total Ingresos: {sales.reduce((acc, sale) => acc + sale.total, 0).toFixed(2)} Bs
+                </span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
