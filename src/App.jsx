@@ -173,7 +173,19 @@ export default function App() {
 
     const currentInvoiceNo = invoiceCounter;
     
-    // 1. Registrar la Venta
+    // 1. Generar el PDF con el número actual
+    const doc = generatePDF(currentInvoiceNo, logoBase64);
+    const fileName = `factura_${String(currentInvoiceNo).padStart(4, '0')}.pdf`;
+
+    // Si solo es descargar, descargamos y no finalizamos la venta aún
+    if (actionType === 'pdf') {
+      doc.save(fileName);
+      return; 
+    }
+
+    // --- DE AQUÍ EN ADELANTE ES FINALIZAR VENTA Y WHATSAPP ---
+
+    // 2. Registrar la Venta
     const newSale = {
       id: Date.now(),
       date: new Date().toLocaleString(),
@@ -187,50 +199,39 @@ export default function App() {
     setSales(prev => [newSale, ...prev]);
     setInvoiceCounter(prev => prev + 1);
 
-    // 2. Generar el PDF con el número actual y logo
-    const doc = generatePDF(currentInvoiceNo, logoBase64);
-    const fileName = `factura_${String(currentInvoiceNo).padStart(4, '0')}.pdf`;
-
-    // 3. Ejecutar la acción seleccionada
-    if (actionType === 'pdf') {
-      doc.save(fileName);
-      alert(`Venta registrada exitosamente. Factura N° ${currentInvoiceNo} descargada.`);
-    } 
-    else if (actionType === 'whatsapp') {
-      const pdfBlob = doc.output('blob');
-      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      
-      let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('\n');
-      let cleanMessage = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.\n\n*Factura N°:* ${currentInvoiceNo}\n*Detalle de tu pedido:*\n${itemsText}\n\n*Total pagado:* ${total.toFixed(2)} Bs`;
-      let encodedMessage = encodeURIComponent(cleanMessage);
-      
-      // Copiar el texto al portapapeles automáticamente
+    // 3. Lógica de WhatsApp
+    const pdfBlob = doc.output('blob');
+    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    
+    let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('\n');
+    let cleanMessage = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.\n\n*Factura N°:* ${currentInvoiceNo}\n*Detalle de tu pedido:*\n${itemsText}\n\n*Total pagado:* ${total.toFixed(2)} Bs`;
+    let encodedMessage = encodeURIComponent(cleanMessage);
+    
+    try {
+      await navigator.clipboard.writeText(cleanMessage);
+    } catch (err) {
+      console.log('No se pudo copiar al portapapeles automáticamente', err);
+    }
+    
+    let shareSuccess = false;
+    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
       try {
-        await navigator.clipboard.writeText(cleanMessage);
-      } catch (err) {
-        console.log('No se pudo copiar al portapapeles automáticamente', err);
+        await navigator.share({
+          title: `Factura ${currentInvoiceNo} Frutas Locas MX`,
+          text: cleanMessage,
+          files: [pdfFile]
+        });
+        shareSuccess = true;
+      } catch (error) {
+        console.log('Share cancelado o falló', error);
       }
-      
-      let shareSuccess = false;
-      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-          await navigator.share({
-            title: `Factura ${currentInvoiceNo} Frutas Locas MX`,
-            text: cleanMessage,
-            files: [pdfFile]
-          });
-          shareSuccess = true;
-        } catch (error) {
-          console.log('Share cancelado o falló', error);
-        }
-      }
-      
-      if (!shareSuccess) {
-        doc.save(fileName);
-        let phoneParam = customerInfo.phone ? `591${customerInfo.phone.replace(/\D/g, '')}` : ''; 
-        alert(`¡Factura N° ${currentInvoiceNo} descargada y texto copiado!\n\n1. Arrastra el PDF descargado a WhatsApp.\n2. Dale "Pegar" (Ctrl+V) en el comentario del archivo para enviar el detalle junto a la factura.`);
-        window.open(`https://wa.me/${phoneParam}?text=${encodedMessage}`, '_blank');
-      }
+    }
+    
+    if (!shareSuccess) {
+      doc.save(fileName);
+      let phoneParam = customerInfo.phone ? `591${customerInfo.phone.replace(/\D/g, '')}` : ''; 
+      alert(`¡Factura N° ${currentInvoiceNo} registrada y texto copiado!\n\n1. Arrastra el PDF a WhatsApp.\n2. Dale "Pegar" (Ctrl+V) en el comentario del archivo.`);
+      window.open(`https://wa.me/${phoneParam}?text=${encodedMessage}`, '_blank');
     }
 
     // 4. Limpiar para el siguiente cliente
