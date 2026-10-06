@@ -122,7 +122,7 @@ export default function App() {
     doc.text('NIT: 14651364026', 145, 52);
     const formattedNo = String(sale.invoiceNo).padStart(4, '0');
     doc.text(`FACTURA N°: ${formattedNo}`, 145, 59);
-    doc.text('AUTORIZACIÓN: 12340000012345', 145, 66);
+    doc.text('AUTORIZACIÓN: 1234', 145, 66);
 
     doc.setFontSize(16);
     doc.text('FACTURA', 105, 60, { align: 'center' });
