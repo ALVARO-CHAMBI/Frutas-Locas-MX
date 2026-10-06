@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Plus, Minus, FileText, Phone, Candy, ClipboardList, X, Trash2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 const productos = [
   { id: 1, nombre: 'Vaso grande de frutas mixtas', precio: 12, category: 'Helados', imagen: '/img_products/item_1.png' },
@@ -239,6 +241,114 @@ export default function App() {
     setCustomerInfo({ name: 'S/N', nit: '0', phone: '' });
   };
 
+  const downloadRegisterPDF = () => {
+    const doc = new jsPDF();
+    
+    if (logoBase64) {
+      doc.addImage(logoBase64, 'PNG', 15, 10, 25, 25);
+    }
+    
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text('FRUTAS LOCAS MX SRL', 105, 18, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text('Arqueo de Ventas', 105, 26, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Fecha de emisión: ${new Date().toLocaleString()}`, 105, 32, { align: 'center' });
+
+    const tableColumn = ["Factura N°", "Fecha y Hora", "Cliente", "NIT", "Artículos", "Total"];
+    const tableRows = [];
+
+    sales.forEach(sale => {
+      tableRows.push([
+        String(sale.invoiceNo).padStart(4, '0'),
+        sale.date,
+        sale.customer,
+        sale.nit,
+        sale.itemsCount.toString(),
+        `${sale.total.toFixed(2)} Bs`
+      ]);
+    });
+
+    const totalIngresos = sales.reduce((acc, sale) => acc + sale.total, 0);
+
+    autoTable(doc, {
+      startY: 40,
+      head: [tableColumn],
+      body: tableRows,
+      theme: 'grid',
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] },
+      foot: [
+        ['', '', '', '', 'TOTAL:', `${totalIngresos.toFixed(2)} Bs`]
+      ],
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+
+    doc.save(`Arqueo_Ventas_${Date.now()}.pdf`);
+  };
+
+  const downloadRegisterExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Arqueo de Ventas');
+
+    if (logoBase64) {
+      const base64Data = logoBase64.split(',')[1];
+      const logoId = workbook.addImage({
+        base64: base64Data,
+        extension: 'png',
+      });
+      worksheet.addImage(logoId, {
+        tl: { col: 0, row: 0 },
+        ext: { width: 80, height: 80 }
+      });
+    }
+
+    worksheet.mergeCells('C1:F1');
+    const titleCell = worksheet.getCell('C1');
+    titleCell.value = 'FRUTAS LOCAS MX SRL - Arqueo de Ventas';
+    titleCell.font = { size: 16, bold: true };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    
+    worksheet.mergeCells('C2:F2');
+    worksheet.getCell('C2').value = `Fecha de emisión: ${new Date().toLocaleString()}`;
+
+    const startRow = 6;
+    worksheet.getRow(startRow).values = ["Factura N°", "Fecha y Hora", "Cliente", "NIT", "Artículos", "Total (Bs)"];
+    worksheet.getRow(startRow).font = { bold: true };
+    worksheet.getRow(startRow).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+
+    let currentRow = startRow + 1;
+    sales.forEach(sale => {
+      worksheet.getRow(currentRow).values = [
+        String(sale.invoiceNo).padStart(4, '0'),
+        sale.date,
+        sale.customer,
+        sale.nit,
+        sale.itemsCount,
+        sale.total
+      ];
+      currentRow++;
+    });
+
+    const totalIngresos = sales.reduce((acc, sale) => acc + sale.total, 0);
+    worksheet.getRow(currentRow + 1).values = ["", "", "", "", "TOTAL INGRESOS:", totalIngresos];
+    worksheet.getRow(currentRow + 1).font = { bold: true };
+    worksheet.getRow(currentRow + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+
+    worksheet.columns = [
+      { width: 12 },
+      { width: 22 },
+      { width: 30 },
+      { width: 15 },
+      { width: 10 },
+      { width: 15 },
+    ];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Arqueo_Ventas_${Date.now()}.xlsx`);
+  };
+
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col font-sans">
       <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -443,10 +553,26 @@ export default function App() {
               className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col"
             >
               <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50">
-                <h2 className="text-xl font-bold text-neutral-800 flex items-center gap-2">
-                  <ClipboardList className="text-primary w-6 h-6" />
-                  Registro de Ventas
-                </h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-xl font-bold text-neutral-800 flex items-center gap-2">
+                    <ClipboardList className="text-primary w-6 h-6" />
+                    Registro de Ventas
+                  </h2>
+                  <div className="flex gap-2 border-l border-neutral-200 pl-4 ml-2">
+                    <button 
+                      onClick={downloadRegisterPDF}
+                      className="text-xs font-medium bg-neutral-900 text-white px-3 py-1.5 rounded hover:bg-neutral-800 transition"
+                    >
+                      Descargar PDF
+                    </button>
+                    <button 
+                      onClick={downloadRegisterExcel}
+                      className="text-xs font-medium bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 transition"
+                    >
+                      Descargar Excel
+                    </button>
+                  </div>
+                </div>
                 <button 
                   onClick={() => setShowRegister(false)}
                   className="p-2 hover:bg-neutral-200 rounded-full transition-colors"
