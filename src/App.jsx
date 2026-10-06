@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Plus, Minus, FileText, Phone, Candy, ClipboardList, X, Trash2 } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, FileText, Phone, Candy, ClipboardList, X, Trash2, CheckCircle2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
@@ -19,7 +19,6 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [customerInfo, setCustomerInfo] = useState({ name: 'S/N', nit: '0', phone: '' });
   
-  // Persistencia de datos en localStorage
   const [invoiceCounter, setInvoiceCounter] = useState(() => {
     const saved = localStorage.getItem('invoiceCounter');
     return saved ? parseInt(saved) : 1;
@@ -32,6 +31,9 @@ export default function App() {
 
   const [showRegister, setShowRegister] = useState(false);
   const [logoBase64, setLogoBase64] = useState(null);
+  
+  // Nuevo estado para mostrar la pantalla post-venta
+  const [completedSale, setCompletedSale] = useState(null);
 
   useEffect(() => {
     const loadLogo = async () => {
@@ -81,7 +83,19 @@ export default function App() {
 
   const total = cart.reduce((acc, item) => acc + (item.precio * item.qty), 0);
 
-  const generatePDF = (invoiceNo, logoB64, controlCode) => {
+  const generateControlCode = () => {
+    const chars = '0123456789ABCDEF';
+    let code = '';
+    for (let i = 0; i < 5; i++) {
+      let pair = '';
+      for (let j = 0; j < 2; j++) pair += chars[Math.floor(Math.random() * 16)];
+      code += pair + (i < 4 ? '-' : '');
+    }
+    return code;
+  };
+
+  // Ahora generatePDF recibe un objeto sale (venta) en lugar de leer del estado del carrito
+  const generatePDF = (sale, logoB64) => {
     const doc = new jsPDF();
     
     if (logoB64) {
@@ -94,41 +108,41 @@ export default function App() {
     }
     
     doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont("helvetica", "bold");
     doc.text('FRUTAS LOCAS MX SRL', 105, 20, { align: 'center' });
     
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     doc.text('Casa Matriz: Calle Víctor Gutiérrez No. 3339 - Zona 16 de julio', 105, 26, { align: 'center' });
     doc.text('El Alto - Bolivia', 105, 32, { align: 'center' });
     doc.text('Teléfono: 77777777', 105, 38, { align: 'center' });
     
-    doc.setFont('helvetica', 'bold');
+    doc.setFont("helvetica", "bold");
     doc.rect(140, 45, 60, 25);
     doc.text('NIT: 14651364026', 145, 52);
-    const formattedNo = String(invoiceNo).padStart(4, '0');
-    doc.text('FACTURA N°: ' + formattedNo, 145, 59);
+    const formattedNo = String(sale.invoiceNo).padStart(4, '0');
+    doc.text(`FACTURA N°: ${formattedNo}`, 145, 59);
     doc.text('AUTORIZACIÓN: 12340000012345', 145, 66);
 
     doc.setFontSize(16);
     doc.text('FACTURA', 105, 60, { align: 'center' });
     doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     doc.text('(Con Derecho a Crédito Fiscal)', 105, 65, { align: 'center' });
     
-    doc.text('Fecha: ' + new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(), 15, 80);
-    doc.text('Señor(es): ' + customerInfo.name, 15, 86);
-    doc.text('NIT/CI: ' + customerInfo.nit, 15, 92);
+    doc.text(`Fecha: ${sale.date}`, 15, 80);
+    doc.text(`Señor(es): ${sale.customerName}`, 15, 86);
+    doc.text(`NIT/CI: ${sale.customerNit}`, 15, 92);
 
-    const tableColumn = ['CANTIDAD', 'DETALLE', 'P. UNITARIO', 'SUBTOTAL'];
+    const tableColumn = ["CANTIDAD", "DETALLE", "P. UNITARIO", "SUBTOTAL"];
     const tableRows = [];
 
-    cart.forEach(item => {
+    sale.items.forEach(item => {
       tableRows.push([
         item.qty.toString(),
         item.nombre,
-        item.precio.toFixed(2) + ' Bs',
-        (item.precio * item.qty).toFixed(2) + ' Bs'
+        `${item.precio.toFixed(2)} Bs`,
+        `${(item.precio * item.qty).toFixed(2)} Bs`
       ]);
     });
 
@@ -138,119 +152,98 @@ export default function App() {
       body: tableRows,
       theme: 'grid',
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] },
-      foot: [['', '', 'TOTAL:', total.toFixed(2) + ' Bs']],
+      foot: [['', '', 'TOTAL:', `${sale.total.toFixed(2)} Bs`]],
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
 
     const finalY = doc.lastAutoTable.finalY + 15;
     
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    if (controlCode) {
-      doc.text('CÓDIGO DE CONTROL: ' + controlCode, 15, finalY);
+    doc.setFont("helvetica", "bold");
+    if (sale.controlCode) {
+      doc.text(`CÓDIGO DE CONTROL: ${sale.controlCode}`, 15, finalY);
     }
-    doc.text('FECHA LÍMITE DE EMISIÓN: 31/12/' + new Date().getFullYear(), 15, finalY + 6);
+    doc.text(`FECHA LÍMITE DE EMISIÓN: 31/12/${new Date().getFullYear()}`, 15, finalY + 6);
     
     doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont("helvetica", "bold");
     doc.text('"ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS. EL USO ILÍCITO DE ÉSTA SERÁ SANCIONADO DE ACUERDO A LEY"', 105, finalY + 15, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     doc.text('Ley N° 453: El proveedor deberá entregar el producto en las condiciones ofertadas o convenidas.', 105, finalY + 20, { align: 'center' });
     
     return doc;
   };
 
-  const generateControlCode = () => {
-    const chars = '0123456789ABCDEF';
-    let code = '';
-    for (let i = 0; i < 5; i++) {
-      let pair = '';
-      for (let j = 0; j < 2; j++) pair += chars[Math.floor(Math.random() * 16)];
-      code += pair + (i < 4 ? '-' : '');
-    }
-    return code;
-  };
-
-  const processSale = async (actionType) => {
+  const finalizeSale = () => {
     if (cart.length === 0) return;
     
-    if (actionType === 'whatsapp' && !customerInfo.phone) {
-      alert("Por favor, ingresa el celular del cliente para enviar el mensaje por WhatsApp.");
-      return;
-    }
-
     const currentInvoiceNo = invoiceCounter;
     const controlCode = generateControlCode();
     
-    // 1. Generar el PDF con el número actual
-    const doc = generatePDF(currentInvoiceNo, logoBase64, controlCode);
-    const fileName = `factura_${String(currentInvoiceNo).padStart(4, '0')}.pdf`;
-
-    // 2. Registrar la Venta siempre
     const newSale = {
       id: Date.now(),
       date: new Date().toLocaleString(),
       invoiceNo: currentInvoiceNo,
-      customer: customerInfo.name,
-      nit: customerInfo.nit,
+      customerName: customerInfo.name,
+      customerNit: customerInfo.nit,
+      customerPhone: customerInfo.phone,
       total: total,
-      itemsCount: cart.reduce((a, b) => a + b.qty, 0)
+      itemsCount: cart.reduce((a, b) => a + b.qty, 0),
+      items: [...cart],
+      controlCode: controlCode
     };
     
     setSales(prev => [newSale, ...prev]);
     setInvoiceCounter(prev => prev + 1);
-
-    if (actionType === 'pdf') {
-      doc.save(fileName);
-      alert(`Venta registrada exitosamente. Factura N° ${currentInvoiceNo} descargada.`);
-    } else if (actionType === 'whatsapp') {
-      const pdfBlob = doc.output('blob');
-      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      
-      let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('\n');
-      let cleanMessage = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.\n\n*Factura N°:* ${currentInvoiceNo}\n*Detalle de tu pedido:*\n${itemsText}\n\n*Total pagado:* ${total.toFixed(2)} Bs`;
-      let encodedMessage = encodeURIComponent(cleanMessage);
-      
-      try {
-        await navigator.clipboard.writeText(cleanMessage);
-      } catch (err) {
-        console.log('No se pudo copiar al portapapeles automáticamente', err);
-      }
-      
-      let shareSuccess = false;
-      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-          await navigator.share({
-            title: `Factura ${currentInvoiceNo} Frutas Locas MX`,
-            text: cleanMessage,
-            files: [pdfFile]
-          });
-          shareSuccess = true;
-        } catch (error) {
-          console.log('Share cancelado o falló', error);
-        }
-      }
-      
-      if (!shareSuccess) {
-        doc.save(fileName);
-        let phoneParam = customerInfo.phone ? `591${customerInfo.phone.replace(/\D/g, '')}` : ''; 
-        alert(`¡Factura N° ${currentInvoiceNo} registrada y texto copiado!\n\n1. Arrastra el PDF a WhatsApp.\n2. Dale "Pegar" (Ctrl+V) en el comentario del archivo.`);
-        window.open(`https://wa.me/${phoneParam}?text=${encodedMessage}`, '_blank');
-      }
-    }
-
-    // 4. Limpiar para el siguiente cliente
+    setCompletedSale(newSale); // Pasamos a la pantalla de éxito
+    
     setCart([]);
     setCustomerInfo({ name: 'S/N', nit: '0', phone: '' });
   };
 
-  const downloadRegisterPDF = () => {
-    const doc = new jsPDF();
+  const handleDownloadPDF = (sale) => {
+    const doc = generatePDF(sale, logoBase64);
+    const fileName = `factura_${String(sale.invoiceNo).padStart(4, '0')}.pdf`;
+    doc.save(fileName);
+  };
+
+  const handleSendWA = async (sale) => {
+    const doc = generatePDF(sale, logoBase64);
+    const fileName = `factura_${String(sale.invoiceNo).padStart(4, '0')}.pdf`;
+    const pdfBlob = doc.output('blob');
+    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
     
-    if (logoBase64) {
-      doc.addImage(logoBase64, 'PNG', 15, 10, 25, 25);
+    let itemsText = sale.items.map(item => `${item.qty}x ${item.nombre}`).join('\n');
+    let cleanMessage = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.\n\n*Factura N°:* ${sale.invoiceNo}\n*Detalle de tu pedido:*\n${itemsText}\n\n*Total pagado:* ${sale.total.toFixed(2)} Bs`;
+    let encodedMessage = encodeURIComponent(cleanMessage);
+    
+    try {
+      await navigator.clipboard.writeText(cleanMessage);
+    } catch (err) {}
+    
+    let shareSuccess = false;
+    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      try {
+        await navigator.share({
+          title: `Factura ${sale.invoiceNo} Frutas Locas MX`,
+          text: cleanMessage,
+          files: [pdfFile]
+        });
+        shareSuccess = true;
+      } catch (error) {}
     }
     
+    if (!shareSuccess) {
+      doc.save(fileName);
+      let phoneParam = sale.customerPhone ? `591${sale.customerPhone.replace(/\D/g, '')}` : ''; 
+      alert(`¡Factura descargada y texto copiado al portapapeles!\n\nDale "Pegar" (Ctrl+V) en el comentario del archivo en WhatsApp.`);
+      window.open(`https://wa.me/${phoneParam}?text=${encodedMessage}`, '_blank');
+    }
+  };
+
+  const downloadRegisterPDF = () => {
+    const doc = new jsPDF();
+    if (logoBase64) doc.addImage(logoBase64, 'PNG', 15, 10, 25, 25);
     doc.setFontSize(20);
     doc.setFont("helvetica", "bold");
     doc.text('FRUTAS LOCAS MX SRL', 105, 18, { align: 'center' });
@@ -262,57 +255,43 @@ export default function App() {
 
     const tableColumn = ["Factura N°", "Fecha y Hora", "Cliente", "NIT", "Artículos", "Total"];
     const tableRows = [];
-
     sales.forEach(sale => {
       tableRows.push([
         String(sale.invoiceNo).padStart(4, '0'),
         sale.date,
-        sale.customer,
-        sale.nit,
+        sale.customerName, // Usar properties actualizadas
+        sale.customerNit,
         sale.itemsCount.toString(),
         `${sale.total.toFixed(2)} Bs`
       ]);
     });
 
     const totalIngresos = sales.reduce((acc, sale) => acc + sale.total, 0);
-
     autoTable(doc, {
       startY: 40,
       head: [tableColumn],
       body: tableRows,
       theme: 'grid',
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] },
-      foot: [
-        ['', '', '', '', 'TOTAL:', `${totalIngresos.toFixed(2)} Bs`]
-      ],
+      foot: [['', '', '', '', 'TOTAL:', `${totalIngresos.toFixed(2)} Bs`]],
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
-
     doc.save(`Arqueo_Ventas_${Date.now()}.pdf`);
   };
 
   const downloadRegisterExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Arqueo de Ventas');
-
     if (logoBase64) {
       const base64Data = logoBase64.split(',')[1];
-      const logoId = workbook.addImage({
-        base64: base64Data,
-        extension: 'png',
-      });
-      worksheet.addImage(logoId, {
-        tl: { col: 0, row: 0 },
-        ext: { width: 80, height: 80 }
-      });
+      const logoId = workbook.addImage({ base64: base64Data, extension: 'png' });
+      worksheet.addImage(logoId, { tl: { col: 0, row: 0 }, ext: { width: 80, height: 80 } });
     }
-
     worksheet.mergeCells('C1:F1');
     const titleCell = worksheet.getCell('C1');
     titleCell.value = 'FRUTAS LOCAS MX SRL - Arqueo de Ventas';
     titleCell.font = { size: 16, bold: true };
     titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
-    
     worksheet.mergeCells('C2:F2');
     worksheet.getCell('C2').value = `Fecha de emisión: ${new Date().toLocaleString()}`;
 
@@ -326,28 +305,19 @@ export default function App() {
       worksheet.getRow(currentRow).values = [
         String(sale.invoiceNo).padStart(4, '0'),
         sale.date,
-        sale.customer,
-        sale.nit,
+        sale.customerName,
+        sale.customerNit,
         sale.itemsCount,
         sale.total
       ];
       currentRow++;
     });
-
     const totalIngresos = sales.reduce((acc, sale) => acc + sale.total, 0);
     worksheet.getRow(currentRow + 1).values = ["", "", "", "", "TOTAL INGRESOS:", totalIngresos];
     worksheet.getRow(currentRow + 1).font = { bold: true };
     worksheet.getRow(currentRow + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
 
-    worksheet.columns = [
-      { width: 12 },
-      { width: 22 },
-      { width: 30 },
-      { width: 15 },
-      { width: 10 },
-      { width: 15 },
-    ];
-
+    worksheet.columns = [{ width: 12 }, { width: 22 }, { width: 30 }, { width: 15 }, { width: 10 }, { width: 15 }];
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `Arqueo_Ventas_${Date.now()}.xlsx`);
   };
@@ -370,8 +340,8 @@ export default function App() {
              </button>
              <div className="relative p-2 bg-neutral-100 rounded-full">
                 <ShoppingCart className="w-5 h-5 text-neutral-600" />
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded-full">
+                {cart.length > 0 && !completedSale && (
+                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
                     {cart.reduce((a, b) => a + b.qty, 0)}
                   </span>
                 )}
@@ -408,8 +378,8 @@ export default function App() {
                     transition={{ repeat: Infinity, duration: 3 + Math.random(), ease: "easeInOut" }}
                   />
                 </div>
-                <h3 className="font-semibold text-lg text-neutral-800">{prod.nombre}</h3>
-                <span className="text-sm text-neutral-500 mb-4">{prod.category}</span>
+                <h3 className="font-semibold text-lg text-neutral-800 text-center leading-tight">{prod.nombre}</h3>
+                <span className="text-sm text-neutral-500 mt-1 mb-4">{prod.category}</span>
                 <div className="w-full flex items-center justify-between mt-auto pt-4 border-t border-neutral-50">
                   <span className="font-bold text-xl text-neutral-900">{prod.precio} Bs</span>
                   <button 
@@ -427,115 +397,144 @@ export default function App() {
         {/* Sidebar Cart & Checkout */}
         <div className="w-full md:w-[400px] flex flex-col gap-6">
           
-          <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-6">
-            <h2 className="text-xl font-bold text-neutral-800 mb-4 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" /> 
-              Pedido Actual
-            </h2>
-            
-            <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-              <AnimatePresence>
-                {cart.length === 0 ? (
-                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-neutral-400 text-center py-8">El carrito está vacío</motion.p>
-                ) : (
-                  cart.map(item => (
-                    <motion.div 
-                      key={item.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      className="flex items-center gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100"
-                    >
-                      <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center shadow-sm overflow-hidden border border-neutral-100 shrink-0">
-                        <img src={item.imagen} alt={item.nombre} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm text-neutral-800">{item.nombre}</p>
-                        <p className="text-xs text-neutral-500">{item.precio} Bs c/u</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => updateQty(item.id, -1)} className="p-1 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200 rounded-md">
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="text-sm font-medium w-4 text-center">{item.qty}</span>
-                        <button onClick={() => updateQty(item.id, 1)} className="p-1 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200 rounded-md">
-                          <Plus className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => removeFromCart(item.id)} className="p-1 ml-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Eliminar producto">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-neutral-100">
-              <div className="flex justify-between items-center mb-6">
-                <span className="font-medium text-neutral-500">Total a Pagar</span>
-                <span className="text-2xl font-bold text-neutral-900">{total.toFixed(2)} Bs</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-6">
-             <h2 className="text-xl font-bold text-neutral-800 mb-4">Datos de Facturación</h2>
-             <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Nombre / Razón Social</label>
-                  <input 
-                    type="text" 
-                    value={customerInfo.name}
-                    onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})}
-                    className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                    placeholder="Escriba el nombre..."
-                  />
+          {completedSale ? (
+             <motion.div 
+               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+               className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-6 flex flex-col items-center text-center"
+             >
+                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                  <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">NIT / CI</label>
-                  <input 
-                    type="text" 
-                    value={customerInfo.nit}
-                    onChange={e => setCustomerInfo({...customerInfo, nit: e.target.value})}
-                    className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                    placeholder="Escriba el NIT..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-600 mb-1">Celular del Cliente</label>
-                  <input 
-                    type="text" 
-                    value={customerInfo.phone}
-                    onChange={e => setCustomerInfo({...customerInfo, phone: e.target.value})}
-                    className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                    placeholder="Ej: 77123456"
-                  />
-                </div>
-             </div>
-
-             <div className="mt-6 space-y-3">
-                <p className="text-xs text-neutral-500 text-center mb-2">
-                  *En celular, WhatsApp borra el texto al enviar PDFs. El detalle se copiará a tu portapapeles, solo debes darle <strong>Pegar</strong> en WhatsApp.
+                <h2 className="text-2xl font-bold text-neutral-800 mb-1">¡Venta Registrada!</h2>
+                <p className="text-neutral-500 mb-6">
+                  Se generó la <strong>Factura N° {String(completedSale.invoiceNo).padStart(4, '0')}</strong><br/>
+                  Total: {completedSale.total.toFixed(2)} Bs
                 </p>
-                <button 
-                  onClick={() => processSale('pdf')}
-                  disabled={cart.length === 0}
-                  className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 text-white py-3 px-4 rounded-xl font-medium transition-colors"
-                >
-                  <FileText className="w-5 h-5" />
-                  Descargar Factura
-                </button>
-                <button 
-                  onClick={() => processSale('whatsapp')}
-                  disabled={cart.length === 0}
-                  className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white py-3 px-4 rounded-xl font-medium transition-colors"
-                >
-                  <Phone className="w-5 h-5" />
-                  Finalizar Venta y Enviar a WA
-                </button>
-             </div>
-          </div>
+                
+                <div className="w-full space-y-3">
+                  <button 
+                    onClick={() => handleDownloadPDF(completedSale)}
+                    className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white py-3 px-4 rounded-xl font-medium transition-colors"
+                  >
+                    <FileText className="w-5 h-5" />
+                    Descargar Factura PDF
+                  </button>
+                  <button 
+                    onClick={() => handleSendWA(completedSale)}
+                    className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl font-medium transition-colors"
+                  >
+                    <Phone className="w-5 h-5" />
+                    Enviar por WhatsApp
+                  </button>
+                </div>
+
+                <div className="w-full mt-6 pt-6 border-t border-neutral-100">
+                  <button 
+                    onClick={() => setCompletedSale(null)}
+                    className="text-blue-600 font-semibold hover:underline"
+                  >
+                    ← Atender Nuevo Cliente
+                  </button>
+                </div>
+             </motion.div>
+          ) : (
+            <>
+              <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-6">
+                <h2 className="text-xl font-bold text-neutral-800 mb-4 flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" /> 
+                  Pedido Actual
+                </h2>
+                
+                <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+                  <AnimatePresence>
+                    {cart.length === 0 ? (
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-neutral-400 text-center py-8">El carrito está vacío</motion.p>
+                    ) : (
+                      cart.map(item => (
+                        <motion.div 
+                          key={item.id}
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          className="flex items-center gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100"
+                        >
+                          <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center shadow-sm overflow-hidden border border-neutral-100 shrink-0">
+                            <img src={item.imagen} alt={item.nombre} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium text-sm text-neutral-800 leading-tight">{item.nombre}</p>
+                            <p className="text-xs text-neutral-500 mt-0.5">{item.precio} Bs c/u</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => updateQty(item.id, -1)} className="p-1 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200 rounded-md">
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-sm font-medium w-4 text-center">{item.qty}</span>
+                            <button onClick={() => updateQty(item.id, 1)} className="p-1 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200 rounded-md">
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => removeFromCart(item.id)} className="p-1 ml-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Eliminar producto">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-neutral-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium text-neutral-500">Total a Pagar</span>
+                    <span className="text-2xl font-bold text-neutral-900">{total.toFixed(2)} Bs</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-6">
+                 <h2 className="text-xl font-bold text-neutral-800 mb-4">Datos del Cliente</h2>
+                 <div className="space-y-4">
+                    <div>
+                      <input 
+                        type="text" 
+                        value={customerInfo.name}
+                        onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})}
+                        className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                        placeholder="Nombre / Razón Social"
+                      />
+                    </div>
+                    <div>
+                      <input 
+                        type="text" 
+                        value={customerInfo.nit}
+                        onChange={e => setCustomerInfo({...customerInfo, nit: e.target.value})}
+                        className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                        placeholder="NIT / CI"
+                      />
+                    </div>
+                    <div>
+                      <input 
+                        type="text" 
+                        value={customerInfo.phone}
+                        onChange={e => setCustomerInfo({...customerInfo, phone: e.target.value})}
+                        className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                        placeholder="Celular (ej: 77123456)"
+                      />
+                    </div>
+                 </div>
+
+                 <div className="mt-6">
+                    <button 
+                      onClick={finalizeSale}
+                      disabled={cart.length === 0}
+                      className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-300 text-white py-3.5 px-4 rounded-xl font-bold shadow-sm transition-colors"
+                    >
+                      Registrar Venta
+                    </button>
+                 </div>
+              </div>
+            </>
+          )}
 
         </div>
       </main>
@@ -544,24 +543,20 @@ export default function App() {
       <AnimatePresence>
         {showRegister && (
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
             <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col"
             >
               <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50">
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                   <h2 className="text-xl font-bold text-neutral-800 flex items-center gap-2">
-                    <ClipboardList className="text-primary w-6 h-6" />
+                    <ClipboardList className="text-blue-600 w-6 h-6" />
                     Registro de Ventas
                   </h2>
-                  <div className="flex gap-2 border-l border-neutral-200 pl-4 ml-2">
+                  <div className="flex gap-2 sm:border-l border-neutral-200 sm:pl-4">
                     <button 
                       onClick={downloadRegisterPDF}
                       className="text-xs font-medium bg-neutral-900 text-white px-3 py-1.5 rounded hover:bg-neutral-800 transition"
@@ -608,8 +603,8 @@ export default function App() {
                           </td>
                           <td className="py-3 px-4 text-sm text-neutral-600">{sale.date}</td>
                           <td className="py-3 px-4 text-sm text-neutral-600">
-                            {sale.customer} <br/>
-                            <span className="text-xs text-neutral-400">NIT: {sale.nit}</span>
+                            {sale.customerName} <br/>
+                            <span className="text-xs text-neutral-400">NIT: {sale.customerNit}</span>
                           </td>
                           <td className="py-3 px-4 text-sm text-neutral-600 text-center">{sale.itemsCount}</td>
                           <td className="py-3 px-4 text-sm font-bold text-neutral-900 text-right">{sale.total.toFixed(2)} Bs</td>
