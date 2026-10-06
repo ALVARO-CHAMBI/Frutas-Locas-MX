@@ -5,12 +5,12 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const productos = [
-  { id: 1, nombre: 'Vaso grande', precio: 12, category: 'Helados', emoji: '🍦', color: 'from-pink-300 to-rose-300' },
-  { id: 2, nombre: 'Vaso mediano', precio: 8, category: 'Helados', emoji: '🍨', color: 'from-blue-300 to-cyan-300' },
-  { id: 3, nombre: 'Vaso pequeño', precio: 5, category: 'Helados', emoji: '🍧', color: 'from-purple-300 to-fuchsia-300' },
-  { id: 4, nombre: 'Mango preparado', precio: 6, category: 'Frutas', emoji: '🥭', color: 'from-yellow-300 to-orange-300' },
-  { id: 5, nombre: 'Piña preparada', precio: 6, category: 'Frutas', emoji: '🍍', color: 'from-green-300 to-emerald-300' },
-  { id: 6, nombre: 'Brocheta', precio: 8, category: 'Frutas', emoji: '🍡', color: 'from-red-300 to-orange-400' },
+  { id: 1, nombre: 'Vaso grande de frutas mixtas', precio: 12, category: 'Helados', imagen: '/img_products/item_1.png' },
+  { id: 2, nombre: 'Vaso mediano', precio: 8, category: 'Helados', imagen: '/img_products/item_2.png' },
+  { id: 3, nombre: 'Vaso pequeño', precio: 5, category: 'Helados', imagen: '/img_products/item_3.png' },
+  { id: 4, nombre: 'Mango preparado', precio: 6, category: 'Frutas', imagen: '/img_products/item_4.png' },
+  { id: 5, nombre: 'Piña preparada', precio: 6, category: 'Frutas', imagen: '/img_products/item_5.png' },
+  { id: 6, nombre: 'Brocheta', precio: 8, category: 'Frutas', imagen: '/img_products/item_6.png' },
 ];
 
 export default function App() {
@@ -286,13 +286,14 @@ export default function App() {
                 className="bg-white rounded-2xl p-4 shadow-sm border border-neutral-100 flex flex-col items-center cursor-pointer transition-all hover:shadow-md"
                 onClick={() => addToCart(prod)}
               >
-                <div className={`w-32 h-32 rounded-full bg-gradient-to-tr ${prod.color} flex items-center justify-center text-6xl mb-4 shadow-inner relative overflow-hidden`}>
-                  <motion.div 
-                    animate={{ y: [0, -10, 0] }} 
+                <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-4 relative overflow-hidden shadow-sm border border-neutral-100`}>
+                  <motion.img 
+                    src={prod.imagen}
+                    alt={prod.nombre}
+                    className="w-full h-full object-cover"
+                    animate={{ y: [0, -5, 0] }} 
                     transition={{ repeat: Infinity, duration: 3 + Math.random(), ease: "easeInOut" }}
-                  >
-                    {prod.emoji}
-                  </motion.div>
+                  />
                 </div>
                 <h3 className="font-semibold text-lg text-neutral-800">{prod.nombre}</h3>
                 <span className="text-sm text-neutral-500 mb-4">{prod.category}</span>
@@ -332,8 +333,8 @@ export default function App() {
                       exit={{ opacity: 0, x: -20 }}
                       className="flex items-center gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100"
                     >
-                      <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center text-2xl shadow-sm">
-                        {item.emoji}
+                      <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center shadow-sm overflow-hidden border border-neutral-100 shrink-0">
+                        <img src={item.imagen} alt={item.nombre} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm text-neutral-800">{item.nombre}</p>
