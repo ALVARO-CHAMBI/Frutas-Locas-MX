@@ -7,9 +7,9 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
 const productos = [
-  { id: 1, nombre: 'Vaso grande de frutas mixtas', precio: 12, category: 'Helados', imagen: '/img_products/item_1.png' },
-  { id: 2, nombre: 'Vaso mediano', precio: 8, category: 'Helados', imagen: '/img_products/item_2.png' },
-  { id: 3, nombre: 'Vaso pequeño', precio: 5, category: 'Helados', imagen: '/img_products/item_3.png' },
+  { id: 1, nombre: 'Vaso grande de frutas mixtas', precio: 12, category: 'Frutas', imagen: '/img_products/item_1.png' },
+  { id: 2, nombre: 'Vaso mediano', precio: 8, category: 'Frutas', imagen: '/img_products/item_2.png' },
+  { id: 3, nombre: 'Vaso pequeño', precio: 5, category: 'Frutas', imagen: '/img_products/item_3.png' },
   { id: 4, nombre: 'Mango preparado', precio: 6, category: 'Frutas', imagen: '/img_products/item_4.png' },
   { id: 5, nombre: 'Piña preparada', precio: 6, category: 'Frutas', imagen: '/img_products/item_5.png' },
   { id: 6, nombre: 'Brocheta', precio: 8, category: 'Frutas', imagen: '/img_products/item_6.png' },
