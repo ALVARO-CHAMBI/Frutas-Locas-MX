@@ -81,68 +81,55 @@ export default function App() {
 
   const total = cart.reduce((acc, item) => acc + (item.precio * item.qty), 0);
 
-  const generatePDF = (invoiceNo, logoB64) => {
+  const generatePDF = (invoiceNo, logoB64, controlCode) => {
     const doc = new jsPDF();
     
     if (logoB64) {
       try {
-        // Marca de agua en el fondo (centro)
         doc.setGState(new doc.GState({opacity: 0.15}));
         doc.addImage(logoB64, 'PNG', 45, 90, 120, 120);
-        // Restaurar opacidad para el texto
         doc.setGState(new doc.GState({opacity: 1.0}));
-      } catch (e) {
-        console.log('Transparencia no soportada', e);
-      }
-      
-      // Logo claro en la esquina superior izquierda
+      } catch (e) {}
       doc.addImage(logoB64, 'PNG', 15, 10, 30, 30);
     }
     
-    // Header
     doc.setFontSize(20);
-    doc.setFont("helvetica", "bold");
+    doc.setFont('helvetica', 'bold');
     doc.text('FRUTAS LOCAS MX SRL', 105, 20, { align: 'center' });
     
     doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text('Venta de Frutas y Helados', 105, 26, { align: 'center' });
-    doc.text('Calle Víctor Gutiérrez No. 3339 - Zona 16 de julio - El Alto', 105, 32, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text('Casa Matriz: Calle Víctor Gutiérrez No. 3339 - Zona 16 de julio', 105, 26, { align: 'center' });
+    doc.text('El Alto - Bolivia', 105, 32, { align: 'center' });
     doc.text('Teléfono: 77777777', 105, 38, { align: 'center' });
     
-    // Right side info (NIT, Factura No)
-    doc.setFont("helvetica", "bold");
+    doc.setFont('helvetica', 'bold');
     doc.rect(140, 45, 60, 25);
     doc.text('NIT: 14651364026', 145, 52);
-    // Número correlativo de 4 dígitos (ej: 0001, 0002)
     const formattedNo = String(invoiceNo).padStart(4, '0');
-    doc.text(`FACTURA N°: ${formattedNo}`, 145, 59);
-    doc.text('AUTORIZACIÓN: 123456', 145, 66);
+    doc.text('FACTURA N°: ' + formattedNo, 145, 59);
+    doc.text('AUTORIZACIÓN: 12340000012345', 145, 66);
 
-    // Title
     doc.setFontSize(16);
     doc.text('FACTURA', 105, 60, { align: 'center' });
     doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
+    doc.setFont('helvetica', 'normal');
     doc.text('(Con Derecho a Crédito Fiscal)', 105, 65, { align: 'center' });
     
-    // Customer Info
-    doc.text(`Fecha: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 15, 80);
-    doc.text(`Señor(es): ${customerInfo.name}`, 15, 86);
-    doc.text(`NIT/CI: ${customerInfo.nit}`, 15, 92);
+    doc.text('Fecha: ' + new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(), 15, 80);
+    doc.text('Señor(es): ' + customerInfo.name, 15, 86);
+    doc.text('NIT/CI: ' + customerInfo.nit, 15, 92);
 
-    // Table
-    const tableColumn = ["CANTIDAD", "DETALLE", "P. UNITARIO", "SUBTOTAL"];
+    const tableColumn = ['CANTIDAD', 'DETALLE', 'P. UNITARIO', 'SUBTOTAL'];
     const tableRows = [];
 
     cart.forEach(item => {
-      const rowData = [
+      tableRows.push([
         item.qty.toString(),
         item.nombre,
-        `${item.precio.toFixed(2)} Bs`,
-        `${(item.precio * item.qty).toFixed(2)} Bs`
-      ];
-      tableRows.push(rowData);
+        item.precio.toFixed(2) + ' Bs',
+        (item.precio * item.qty).toFixed(2) + ' Bs'
+      ]);
     });
 
     autoTable(doc, {
@@ -151,18 +138,37 @@ export default function App() {
       body: tableRows,
       theme: 'grid',
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] },
-      foot: [
-        ['', '', 'TOTAL:', `${total.toFixed(2)} Bs`]
-      ],
+      foot: [['', '', 'TOTAL:', total.toFixed(2) + ' Bs']],
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
 
-    // Footer
     const finalY = doc.lastAutoTable.finalY + 15;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    if (controlCode) {
+      doc.text('CÓDIGO DE CONTROL: ' + controlCode, 15, finalY);
+    }
+    doc.text('FECHA LÍMITE DE EMISIÓN: 31/12/' + new Date().getFullYear(), 15, finalY + 6);
+    
     doc.setFontSize(8);
-    doc.text('"ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS. EL USO ILÍCITO DE ÉSTA SERÁ SANCIONADO DE ACUERDO A LEY"', 105, finalY, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text('"ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS. EL USO ILÍCITO DE ÉSTA SERÁ SANCIONADO DE ACUERDO A LEY"', 105, finalY + 15, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text('Ley N° 453: El proveedor deberá entregar el producto en las condiciones ofertadas o convenidas.', 105, finalY + 20, { align: 'center' });
     
     return doc;
+  };
+
+  const generateControlCode = () => {
+    const chars = '0123456789ABCDEF';
+    let code = '';
+    for (let i = 0; i < 5; i++) {
+      let pair = '';
+      for (let j = 0; j < 2; j++) pair += chars[Math.floor(Math.random() * 16)];
+      code += pair + (i < 4 ? '-' : '');
+    }
+    return code;
   };
 
   const processSale = async (actionType) => {
@@ -174,20 +180,13 @@ export default function App() {
     }
 
     const currentInvoiceNo = invoiceCounter;
+    const controlCode = generateControlCode();
     
     // 1. Generar el PDF con el número actual
-    const doc = generatePDF(currentInvoiceNo, logoBase64);
+    const doc = generatePDF(currentInvoiceNo, logoBase64, controlCode);
     const fileName = `factura_${String(currentInvoiceNo).padStart(4, '0')}.pdf`;
 
-    // Si solo es descargar, descargamos y no finalizamos la venta aún
-    if (actionType === 'pdf') {
-      doc.save(fileName);
-      return; 
-    }
-
-    // --- DE AQUÍ EN ADELANTE ES FINALIZAR VENTA Y WHATSAPP ---
-
-    // 2. Registrar la Venta
+    // 2. Registrar la Venta siempre
     const newSale = {
       id: Date.now(),
       date: new Date().toLocaleString(),
@@ -201,39 +200,43 @@ export default function App() {
     setSales(prev => [newSale, ...prev]);
     setInvoiceCounter(prev => prev + 1);
 
-    // 3. Lógica de WhatsApp
-    const pdfBlob = doc.output('blob');
-    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    
-    let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('\n');
-    let cleanMessage = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.\n\n*Factura N°:* ${currentInvoiceNo}\n*Detalle de tu pedido:*\n${itemsText}\n\n*Total pagado:* ${total.toFixed(2)} Bs`;
-    let encodedMessage = encodeURIComponent(cleanMessage);
-    
-    try {
-      await navigator.clipboard.writeText(cleanMessage);
-    } catch (err) {
-      console.log('No se pudo copiar al portapapeles automáticamente', err);
-    }
-    
-    let shareSuccess = false;
-    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-      try {
-        await navigator.share({
-          title: `Factura ${currentInvoiceNo} Frutas Locas MX`,
-          text: cleanMessage,
-          files: [pdfFile]
-        });
-        shareSuccess = true;
-      } catch (error) {
-        console.log('Share cancelado o falló', error);
-      }
-    }
-    
-    if (!shareSuccess) {
+    if (actionType === 'pdf') {
       doc.save(fileName);
-      let phoneParam = customerInfo.phone ? `591${customerInfo.phone.replace(/\D/g, '')}` : ''; 
-      alert(`¡Factura N° ${currentInvoiceNo} registrada y texto copiado!\n\n1. Arrastra el PDF a WhatsApp.\n2. Dale "Pegar" (Ctrl+V) en el comentario del archivo.`);
-      window.open(`https://wa.me/${phoneParam}?text=${encodedMessage}`, '_blank');
+      alert(`Venta registrada exitosamente. Factura N° ${currentInvoiceNo} descargada.`);
+    } else if (actionType === 'whatsapp') {
+      const pdfBlob = doc.output('blob');
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      
+      let itemsText = cart.map(item => `${item.qty}x ${item.nombre}`).join('\n');
+      let cleanMessage = `Hola! Gracias por tu compra en *FRUTAS LOCAS MX SRL*.\n\n*Factura N°:* ${currentInvoiceNo}\n*Detalle de tu pedido:*\n${itemsText}\n\n*Total pagado:* ${total.toFixed(2)} Bs`;
+      let encodedMessage = encodeURIComponent(cleanMessage);
+      
+      try {
+        await navigator.clipboard.writeText(cleanMessage);
+      } catch (err) {
+        console.log('No se pudo copiar al portapapeles automáticamente', err);
+      }
+      
+      let shareSuccess = false;
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            title: `Factura ${currentInvoiceNo} Frutas Locas MX`,
+            text: cleanMessage,
+            files: [pdfFile]
+          });
+          shareSuccess = true;
+        } catch (error) {
+          console.log('Share cancelado o falló', error);
+        }
+      }
+      
+      if (!shareSuccess) {
+        doc.save(fileName);
+        let phoneParam = customerInfo.phone ? `591${customerInfo.phone.replace(/\D/g, '')}` : ''; 
+        alert(`¡Factura N° ${currentInvoiceNo} registrada y texto copiado!\n\n1. Arrastra el PDF a WhatsApp.\n2. Dale "Pegar" (Ctrl+V) en el comentario del archivo.`);
+        window.open(`https://wa.me/${phoneParam}?text=${encodedMessage}`, '_blank');
+      }
     }
 
     // 4. Limpiar para el siguiente cliente
